@@ -1,62 +1,67 @@
-#!/usr/bin/env python
+#! /usr/bin/env python
 
 # ROS dependencies
 import rospy
 from std_msgs.msg import String
-from nxt_msgs.msg import Light
-from geometry_msgs.msg import Twist
+from nxt_msgs.msg import Light              # nxt_msgs/Light
+from geometry_msgs.msg import Twist         # geometry_msgs/Twist
 
+# Other dependencies
+import sys
+import auxiliar
 
+# variables of limits black-white
+black_l = 0
+black_r = 0
+white_l = 0
+white_r = 0
 
-# geometry_msgs/Twist
-# nxt_msgs/Light
+#threshold after remap
+threshold_light = 50
 
-light_l = 0.0
-light_r = 0.0
-
-# Callbacks
+# Standard Callbacks
 def callback_light_l(data):
     global light_l
-    light_l = data.intensity
+    value = data.intensity
+    light_l = auxiliar.remap(value, black_l, white_l, 0, 100)
 
 def callback_light_r(data):
     global light_r
+    value = data.intensity
+    light_r = auxiliar.remap(value, black_r, white_l, 0, 100)
+
+# Callbacks for calibration
+def callback_calib_l(data):
+    global light_l
+    light_l = data.intensity
+
+def callback_calib_l(data):
+    global light_r
     light_r = data.intensity
 
-def calibracao():
+# calibration routine
+def calibration():
+    print "Iniciando calibracao"
+
     # obtem os valores para branco e preto de cada sensor
-    raw_input("\nPosicione o robo com os dois sensores na pista branca e digite enter...")
+    raw_input("\nPosicione o robo com os sensores sobre o branco e digite enter...")
     white_l = light_l
     white_r = light_r
     print "\nWhiteLeft = " + str(white_l)
     print "WhiteRight = " + str(white_r)
 
-    raw_input("\nPosicione o robo com o sensor numero 4 sobre a cor preta e digite enter...")
+    raw_input("\nPosicione o robo com os sensores sobre o preto e digite enter...")
     black_r = light_r
-    print"\nBlackRight = " + str(black_r)
-
-    raw_input("\nPosicione o robo com o sensor numero 8 sobre a cor preta e digite enter...")
     black_l = light_l
     print"\nBlackLeft = " + str(black_l)
-
-    # trata os dados recebidos
-    print "\n\nTratando os dados recebidos..."
+    print"BlackRight = " + str(black_r)
     
-    light_tresh_l = (white_l + black_l) / 2
-    light_tresh_r = (white_r + black_r) / 2
-
-    return light_tresh_l, light_tresh_r;
+    # com remap 0-100 sendo executado é possivel manter o threshold estável em 50 
+    print "\n\nDados armazenados para remap dos sensores"
 
 def line_follower(light_tresh_l, light_tresh_r):
     # initial config
     pub = rospy.Publisher('/cmd_vel', Twist, queue_size=10)
-
-    # set manual threshold
-    #light_tresh_r = 430.0
-    #light_tresh_l = 400.0
-
-    black_l = 400.0
-    black_r = 400.0
 
     vel_msg = Twist()
     vel_msg.linear.x = 0
@@ -69,37 +74,45 @@ def line_follower(light_tresh_l, light_tresh_r):
     # angular = rad/s
     # linear = m/s
 
-    rate = rospy.Rate(100)  # original = 10 Hz  
+    rate = rospy.Rate(20)  # original = 10 Hz  
 
-    while not rospy.is_shutdown():
-        if light_l < light_tresh_l:               # carrinho indo para direita
-            vel_msg.linear.x = 0.03
-            vel_msg.angular.z = 0.25
-        elif light_r < light_tresh_r:             # carrinho indo para esquerda
-            vel_msg.linear.x = 0.03
-            vel_msg.angular.z = -0.25
-        else:
-            vel_msg.linear.x = 0.04
-            vel_msg.angular.z = 0.0
+    while not rospy.is_shutdown():              # principal loop
+        light_error = light_l - light_r
 
+        # proportional control
+        kp_linear = 0.0
+        kp_angular = 0.0
+
+        vel_msg.linear.x = 0.04 - (kp_linear * light_error)     # where kp * error can be up to 0.02 (max value for do not stop the car)
+                                                                # 0.04 is an acceptable value for the velocity of the car
+        vel_msg.angular.z = kp_angular * light_error            # kp * error, in this case, can be up to 0.25 with the experimental tests
+        
         pub.publish(vel_msg)
         rate.sleep()
 
-if __name__ == '__main__':
-    # initial config
+def main():
+    # Initial config
     light_tresh_l = 562
     light_tresh_r = 578
 
-    rospy.init_node('light_control', anonymous=True)
+    rospy.init_node('light_control', anonymous=True)        # pra que??
     
+    # Parser of calibration arg
+    if len(sys.argv) > 1:
+        # select the callbacks for the calibration
+        sensor_l = rospy.Subscriber("/light_l", Light, callback_calib_l)
+        sensor_r rospy.Subscriber("/light_r", Light, callback_calib_r)
+
+        globals()[sys.argv[1]]()
+
+        sensor_l.unregister()
+        sensor_r.unregister)()
+
+    # Line follower 
     rospy.Subscriber("/light_l", Light, callback_light_l)
     rospy.Subscriber("/light_r", Light, callback_light_r)
- 
-    choose = raw_input("Digite\n\r\t0 - Calibracao\n\r\t1 - Seguidor de linha\n")
 
-    if choose == "0":
-        light_tresh_l, light_tresh_r = calibracao()
-        line_follower(light_tresh_l, light_tresh_r)
-    else:
-        line_follower(light_tresh_l, light_tresh_r)
+    line_follower(light_tresh_l, light_tresh_r)
 
+if __name__ == '__main__':
+    main()

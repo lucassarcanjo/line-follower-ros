@@ -35,7 +35,7 @@ def callback_calib_l(data):
     global light_l
     light_l = data.intensity
 
-def callback_calib_l(data):
+def callback_calib_r(data):
     global light_r
     light_r = data.intensity
 
@@ -86,7 +86,7 @@ def line_follower(light_tresh_l, light_tresh_r):
         vel_msg.linear.x = 0.04 - (kp_linear * light_error)     # where kp * error can be up to 0.02 (max value for do not stop the car)
                                                                 # 0.04 is an acceptable value for the velocity of the car
         vel_msg.angular.z = kp_angular * light_error            # kp * error, in this case, can be up to 0.25 with the experimental tests
-        
+
         pub.publish(vel_msg)
         rate.sleep()
 
@@ -101,12 +101,12 @@ def main():
     if len(sys.argv) > 1:
         # select the callbacks for the calibration
         sensor_l = rospy.Subscriber("/light_l", Light, callback_calib_l)
-        sensor_r rospy.Subscriber("/light_r", Light, callback_calib_r)
+        sensor_r = rospy.Subscriber("/light_r", Light, callback_calib_r)
 
         globals()[sys.argv[1]]()
 
         sensor_l.unregister()
-        sensor_r.unregister)()
+        sensor_r.unregister()
 
     # Line follower 
     rospy.Subscriber("/light_l", Light, callback_light_l)

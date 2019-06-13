@@ -1,5 +1,10 @@
 #! /usr/bin/env python
+import json
 
+def loadConfigs():
+    with open("/home/lucas/lego/src/seguidor_linha/scripts/data.json", "r") as file:
+        return json.load(file)
+        
 def remap(x, oMin, oMax, nMin, nMax):
 
     #range check
@@ -37,4 +42,7 @@ def remap(x, oMin, oMax, nMin, nMax):
 
 
 if __name__ == "__main__":
+    ret = loadConfigs()
+
+    # print str(ret['sensorLeftBlackValue'])
     pass
